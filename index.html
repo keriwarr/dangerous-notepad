@@ -442,14 +442,15 @@
 
     // Handle input
     function handleInput(e) {
-      // Detect if this was a deletion (backspace, delete, cut, etc.)
       const newText = textarea.value;
       const oldText = session.text || '';
+      const newWordCount = countWords(newText);
+      const oldWordCount = countWords(oldText);
 
-      // Only reset timer if text was added, not removed
-      if (newText.length > oldText.length) {
-        // Start the session clock on first character
-        if (!session.startTime && newText.length > 0) {
+      // Only reset timer if word count increased
+      if (newWordCount > oldWordCount) {
+        // Start the session clock on first word
+        if (!session.startTime) {
           session.startTime = Date.now();
           session.lastWriteTime = Date.now();
         }
