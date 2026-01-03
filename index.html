@@ -407,7 +407,7 @@
         const r = Math.round(90 + (201 - 90) * (1 - percent));
         const g = Math.round(143 + (48 - 143) * (1 - percent));
         const b = Math.round(90 + (44 - 90) * (1 - percent));
-        deletionBar.style.background = `rgb(${r}, ${g}, ${b})`;
+        deletionBar.style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
       }
 
       checkSafety();
@@ -493,7 +493,7 @@
       wordCountEl.classList.remove('achieved');
       deletionIndicator.classList.remove('safe');
       deletionBar.style.width = '100%';
-      deletionBar.style.background = '';
+      deletionBar.style.backgroundColor = '';
 
       // Check if we should delete immediately due to timeout while away
       if (session.lastWriteTime && session.startTime) {
