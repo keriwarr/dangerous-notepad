@@ -125,11 +125,6 @@
       font-variant-numeric: tabular-nums;
     }
 
-    .timer.danger {
-      color: var(--accent);
-      font-weight: bold;
-    }
-
     .timer.safe {
       color: var(--safe);
     }
@@ -142,8 +137,23 @@
       color: var(--safe);
     }
 
+    .start-over {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 0.85rem;
+      font-family: inherit;
+      padding: 0;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    .start-over:hover {
+      color: var(--text);
+    }
+
     .deletion-indicator {
-      display: none;
       height: 3px;
       background: var(--border);
       border-radius: 2px;
@@ -151,24 +161,16 @@
       overflow: hidden;
     }
 
-    .deletion-indicator.active {
-      display: block;
-    }
-
     .deletion-indicator.safe {
-      display: none;
+      visibility: hidden;
     }
 
     .deletion-bar {
       height: 100%;
-      background: var(--muted);
+      background: var(--safe);
       border-radius: 2px;
-      transition: width 0.1s linear, background-color 0.3s;
+      transition: width 0.1s linear;
       width: 100%;
-    }
-
-    .deletion-bar.danger {
-      background: var(--accent);
     }
 
     textarea {
@@ -261,7 +263,7 @@
       </label>
       <label>
         Time goal (minutes)
-        <input type="number" id="timeGoal" value="5" min="1" max="60">
+        <input type="number" id="timeGoal" value="10" min="1" max="60">
       </label>
       <label>
         Word goal
@@ -277,6 +279,7 @@
     <div class="status-bar">
       <span class="timer" id="timer">--:--</span>
       <span class="word-count" id="wordCount">0 words</span>
+      <button class="start-over" id="startOverBtn">start over</button>
     </div>
     <div class="deletion-indicator" id="deletionIndicator">
       <div class="deletion-bar" id="deletionBar"></div>
@@ -298,7 +301,7 @@
     const STORAGE_KEY = 'ephemeral-writer';
 
     // State
-    let config = { deleteTimeout: 10, timeGoal: 5, wordGoal: 500 };
+    let config = { deleteTimeout: 10, timeGoal: 10, wordGoal: 500 };
     let session = null;
     let deleteTimer = null;
     let displayTimer = null;
@@ -316,6 +319,7 @@
     const restartBtn = document.getElementById('restartBtn');
     const deletionIndicator = document.getElementById('deletionIndicator');
     const deletionBar = document.getElementById('deletionBar');
+    const startOverBtn = document.getElementById('startOverBtn');
 
     // Load from storage
     function loadSession() {
@@ -338,11 +342,11 @@
       session = null;
     }
 
-    // Word counting
+    // Word counting - only count tokens with at least one letter or number
     function countWords(text) {
       const trimmed = text.trim();
       if (!trimmed) return 0;
-      return trimmed.split(/\s+/).length;
+      return trimmed.split(/\s+/).filter(word => /[a-zA-Z0-9]/.test(word)).length;
     }
 
     // Time formatting
@@ -364,9 +368,7 @@
       if (elapsedMinutes >= config.timeGoal || words >= config.wordGoal) {
         isSafe = true;
         safeBanner.classList.add('active');
-        timerEl.classList.remove('danger');
         timerEl.classList.add('safe');
-        deletionIndicator.classList.remove('active');
         deletionIndicator.classList.add('safe');
         if (deleteTimer) {
           clearTimeout(deleteTimer);
@@ -394,18 +396,18 @@
         timerEl.textContent = formatTime(elapsed);
       }
 
-      // Update deletion bar
+      // Update deletion bar with continuous color gradient
       if (session.lastWriteTime && !isSafe) {
         const elapsed = Date.now() - session.lastWriteTime;
         const remaining = Math.max(0, config.deleteTimeout * 1000 - elapsed);
-        const percent = (remaining / (config.deleteTimeout * 1000)) * 100;
-        deletionBar.style.width = `${percent}%`;
+        const percent = remaining / (config.deleteTimeout * 1000);
+        deletionBar.style.width = `${percent * 100}%`;
 
-        if (percent < 35) {
-          deletionBar.classList.add('danger');
-        } else {
-          deletionBar.classList.remove('danger');
-        }
+        // Interpolate from green (90, 143, 90) to red (201, 48, 44)
+        const r = Math.round(90 + (201 - 90) * (1 - percent));
+        const g = Math.round(143 + (48 - 143) * (1 - percent));
+        const b = Math.round(90 + (44 - 90) * (1 - percent));
+        deletionBar.style.background = `rgb(${r}, ${g}, ${b})`;
       }
 
       checkSafety();
@@ -417,7 +419,6 @@
       textarea.value = '';
       writer.classList.remove('active');
       deletedOverlay.classList.add('active');
-      deletionIndicator.classList.remove('active');
       deletionIndicator.classList.remove('safe');
       if (deleteTimer) clearTimeout(deleteTimer);
       if (displayTimer) clearInterval(displayTimer);
@@ -432,23 +433,11 @@
       session.lastWriteTime = Date.now();
       saveSession();
 
-      timerEl.classList.remove('danger');
-      deletionBar.style.width = '100%';
-      deletionBar.classList.remove('danger');
-      deletionIndicator.classList.add('active');
-
       deleteTimer = setTimeout(() => {
         if (!isSafe) {
           deleteAll();
         }
       }, config.deleteTimeout * 1000);
-
-      // Show danger state in last 5 seconds
-      setTimeout(() => {
-        if (!isSafe && deleteTimer) {
-          timerEl.classList.add('danger');
-        }
-      }, Math.max(0, (config.deleteTimeout - 5) * 1000));
     }
 
     // Handle input
@@ -480,7 +469,7 @@
       } else {
         config = {
           deleteTimeout: parseInt(document.getElementById('deleteTimeout').value) || 10,
-          timeGoal: parseInt(document.getElementById('timeGoal').value) || 5,
+          timeGoal: parseInt(document.getElementById('timeGoal').value) || 10,
           wordGoal: parseInt(document.getElementById('wordGoal').value) || 500
         };
         session = {
@@ -499,11 +488,12 @@
 
       // Reset visual states
       safeBanner.classList.remove('active');
-      timerEl.classList.remove('safe', 'danger');
+      timerEl.classList.remove('safe');
+      timerEl.textContent = '--:--';
       wordCountEl.classList.remove('achieved');
-      deletionIndicator.classList.remove('active', 'safe');
+      deletionIndicator.classList.remove('safe');
       deletionBar.style.width = '100%';
-      deletionBar.classList.remove('danger');
+      deletionBar.style.background = '';
 
       // Check if we should delete immediately due to timeout while away
       if (session.lastWriteTime && session.startTime) {
@@ -526,7 +516,6 @@
 
       // If session in progress and not safe, start the delete timer
       if (session.startTime && !isSafe) {
-        deletionIndicator.classList.add('active');
         const timeSinceLastWrite = Date.now() - session.lastWriteTime;
         const remainingTime = (config.deleteTimeout * 1000) - timeSinceLastWrite;
 
@@ -534,16 +523,6 @@
           deleteTimer = setTimeout(() => {
             if (!isSafe) deleteAll();
           }, remainingTime);
-
-          // Danger warning
-          const dangerTime = remainingTime - 5000;
-          if (dangerTime > 0) {
-            setTimeout(() => {
-              if (!isSafe && deleteTimer) timerEl.classList.add('danger');
-            }, dangerTime);
-          } else {
-            timerEl.classList.add('danger');
-          }
         } else {
           deleteAll();
           return;
@@ -551,6 +530,7 @@
       }
 
       textarea.focus();
+      textarea.removeEventListener('input', handleInput);
       textarea.addEventListener('input', handleInput);
     }
 
@@ -568,6 +548,15 @@
       restartBtn.addEventListener('click', () => {
         deletedOverlay.classList.remove('active');
         landing.style.display = 'block';
+      });
+      startOverBtn.addEventListener('click', () => {
+        if (confirm('Start over? All your writing will be lost.')) {
+          clearSession();
+          if (deleteTimer) clearTimeout(deleteTimer);
+          if (displayTimer) clearInterval(displayTimer);
+          writer.classList.remove('active');
+          landing.style.display = 'block';
+        }
       });
     }
 
