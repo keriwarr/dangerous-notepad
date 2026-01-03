@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ephemeral Writer</title>
+  <title>Dangerous Notepad</title>
   <style>
     * {
       box-sizing: border-box;
@@ -235,19 +235,29 @@
     .safe-banner.active {
       display: block;
     }
+
+    .attribution {
+      margin-top: 2rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .attribution a {
+      color: var(--muted);
+    }
   </style>
 </head>
 <body>
   <div class="landing" id="landing">
-    <h1>Ephemeral Writer</h1>
+    <h1>Dangerous Notepad</h1>
     <p>
       Write without stopping. If you pause for too long, everything disappears.
-      Reach your goal to save your words.
+      Reach <em>either</em> your time goal or word goal to save your words.
     </p>
     <div class="config">
       <label>
         Seconds before deletion
-        <input type="number" id="deleteTimeout" value="15" min="1" max="120">
+        <input type="number" id="deleteTimeout" value="10" min="1" max="120">
       </label>
       <label>
         Time goal (minutes)
@@ -259,6 +269,7 @@
       </label>
     </div>
     <button id="startBtn">Begin Writing</button>
+    <p class="attribution">Inspired by <a href="https://www.squibler.io/dangerous-writing-prompt-app">The Most Dangerous Writing App</a></p>
   </div>
 
   <div class="writer" id="writer">
@@ -287,7 +298,7 @@
     const STORAGE_KEY = 'ephemeral-writer';
 
     // State
-    let config = { deleteTimeout: 15, timeGoal: 5, wordGoal: 500 };
+    let config = { deleteTimeout: 10, timeGoal: 5, wordGoal: 500 };
     let session = null;
     let deleteTimer = null;
     let displayTimer = null;
@@ -468,7 +479,7 @@
         config = session.config;
       } else {
         config = {
-          deleteTimeout: parseInt(document.getElementById('deleteTimeout').value) || 15,
+          deleteTimeout: parseInt(document.getElementById('deleteTimeout').value) || 10,
           timeGoal: parseInt(document.getElementById('timeGoal').value) || 5,
           wordGoal: parseInt(document.getElementById('wordGoal').value) || 500
         };
