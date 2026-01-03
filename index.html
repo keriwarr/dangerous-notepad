@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ephemeral Writer</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #faf9f7;
+      --text: #2c2c2c;
+      --muted: #8a8a8a;
+      --accent: #c9302c;
+      --safe: #5a8f5a;
+      --border: #e0ddd8;
+    }
+
+    body {
+      font-family: Georgia, 'Times New Roman', serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+    }
+
+    /* Landing page */
+    .landing {
+      max-width: 480px;
+      text-align: center;
+      margin-top: 10vh;
+    }
+
+    .landing h1 {
+      font-size: 2rem;
+      font-weight: normal;
+      margin-bottom: 1.5rem;
+      letter-spacing: -0.02em;
+    }
+
+    .landing p {
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 2rem;
+    }
+
+    .config {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      text-align: left;
+    }
+
+    .config label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .config input {
+      padding: 0.6rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 1rem;
+      font-family: inherit;
+      background: white;
+    }
+
+    .config input:focus {
+      outline: none;
+      border-color: var(--text);
+    }
+
+    button {
+      padding: 0.8rem 2rem;
+      font-size: 1rem;
+      font-family: inherit;
+      background: var(--text);
+      color: var(--bg);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    button:hover {
+      opacity: 0.85;
+    }
+
+    /* Writing page */
+    .writer {
+      display: none;
+      width: 100%;
+      max-width: 700px;
+      flex: 1;
+      flex-direction: column;
+    }
+
+    .writer.active {
+      display: flex;
+    }
+
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 0;
+      margin-bottom: 1rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .timer {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .timer.danger {
+      color: var(--accent);
+      font-weight: bold;
+    }
+
+    .timer.safe {
+      color: var(--safe);
+    }
+
+    .word-count {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .word-count.achieved {
+      color: var(--safe);
+    }
+
+    .deletion-indicator {
+      display: none;
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+
+    .deletion-indicator.active {
+      display: block;
+    }
+
+    .deletion-indicator.safe {
+      display: none;
+    }
+
+    .deletion-bar {
+      height: 100%;
+      background: var(--muted);
+      border-radius: 2px;
+      transition: width 0.1s linear, background-color 0.3s;
+      width: 100%;
+    }
+
+    .deletion-bar.danger {
+      background: var(--accent);
+    }
+
+    textarea {
+      flex: 1;
+      width: 100%;
+      min-height: 60vh;
+      padding: 1.5rem;
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1.15rem;
+      line-height: 1.7;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: white;
+      resize: none;
+      color: var(--text);
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: var(--muted);
+    }
+
+    textarea::placeholder {
+      color: var(--muted);
+      opacity: 0.6;
+    }
+
+    .deleted-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.5rem;
+      text-align: center;
+    }
+
+    .deleted-overlay.active {
+      display: flex;
+    }
+
+    .deleted-overlay h2 {
+      font-weight: normal;
+      color: var(--accent);
+    }
+
+    .deleted-overlay p {
+      color: var(--muted);
+    }
+
+    .safe-banner {
+      display: none;
+      padding: 0.5rem 1rem;
+      background: var(--safe);
+      color: white;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+
+    .safe-banner.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="landing" id="landing">
+    <h1>Ephemeral Writer</h1>
+    <p>
+      Write without stopping. If you pause for too long, everything disappears.
+      Reach your goal to save your words.
+    </p>
+    <div class="config">
+      <label>
+        Seconds before deletion
+        <input type="number" id="deleteTimeout" value="15" min="1" max="120">
+      </label>
+      <label>
+        Time goal (minutes)
+        <input type="number" id="timeGoal" value="5" min="1" max="60">
+      </label>
+      <label>
+        Word goal
+        <input type="number" id="wordGoal" value="500" min="10" max="5000">
+      </label>
+    </div>
+    <button id="startBtn">Begin Writing</button>
+  </div>
+
+  <div class="writer" id="writer">
+    <div class="safe-banner" id="safeBanner">You're safe. Your words are yours to keep.</div>
+    <div class="status-bar">
+      <span class="timer" id="timer">--:--</span>
+      <span class="word-count" id="wordCount">0 words</span>
+    </div>
+    <div class="deletion-indicator" id="deletionIndicator">
+      <div class="deletion-bar" id="deletionBar"></div>
+    </div>
+    <textarea
+      id="textarea"
+      placeholder="Start writing..."
+      autofocus
+    ></textarea>
+  </div>
+
+  <div class="deleted-overlay" id="deletedOverlay">
+    <h2>Everything is gone.</h2>
+    <p>You stopped writing.</p>
+    <button id="restartBtn">Try Again</button>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'ephemeral-writer';
+
+    // State
+    let config = { deleteTimeout: 15, timeGoal: 5, wordGoal: 500 };
+    let session = null;
+    let deleteTimer = null;
+    let displayTimer = null;
+    let isSafe = false;
+
+    // Elements
+    const landing = document.getElementById('landing');
+    const writer = document.getElementById('writer');
+    const textarea = document.getElementById('textarea');
+    const timerEl = document.getElementById('timer');
+    const wordCountEl = document.getElementById('wordCount');
+    const safeBanner = document.getElementById('safeBanner');
+    const deletedOverlay = document.getElementById('deletedOverlay');
+    const startBtn = document.getElementById('startBtn');
+    const restartBtn = document.getElementById('restartBtn');
+    const deletionIndicator = document.getElementById('deletionIndicator');
+    const deletionBar = document.getElementById('deletionBar');
+
+    // Load from storage
+    function loadSession() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (!stored) return null;
+        return JSON.parse(stored);
+      } catch {
+        return null;
+      }
+    }
+
+    function saveSession() {
+      if (!session) return;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+    }
+
+    function clearSession() {
+      localStorage.removeItem(STORAGE_KEY);
+      session = null;
+    }
+
+    // Word counting
+    function countWords(text) {
+      const trimmed = text.trim();
+      if (!trimmed) return 0;
+      return trimmed.split(/\s+/).length;
+    }
+
+    // Time formatting
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Check safety conditions
+    function checkSafety() {
+      if (isSafe) return true;
+      if (!session || !session.startTime) return false;
+
+      const elapsedMs = Date.now() - session.startTime;
+      const elapsedMinutes = elapsedMs / 1000 / 60;
+      const words = countWords(session.text);
+
+      if (elapsedMinutes >= config.timeGoal || words >= config.wordGoal) {
+        isSafe = true;
+        safeBanner.classList.add('active');
+        timerEl.classList.remove('danger');
+        timerEl.classList.add('safe');
+        deletionIndicator.classList.remove('active');
+        deletionIndicator.classList.add('safe');
+        if (deleteTimer) {
+          clearTimeout(deleteTimer);
+          deleteTimer = null;
+        }
+        saveSession();
+        return true;
+      }
+      return false;
+    }
+
+    // Update display
+    function updateDisplay() {
+      if (!session) return;
+
+      const words = countWords(session.text);
+      wordCountEl.textContent = `${words} word${words !== 1 ? 's' : ''}`;
+
+      if (words >= config.wordGoal) {
+        wordCountEl.classList.add('achieved');
+      }
+
+      if (session.startTime) {
+        const elapsed = (Date.now() - session.startTime) / 1000;
+        timerEl.textContent = formatTime(elapsed);
+      }
+
+      // Update deletion bar
+      if (session.lastWriteTime && !isSafe) {
+        const elapsed = Date.now() - session.lastWriteTime;
+        const remaining = Math.max(0, config.deleteTimeout * 1000 - elapsed);
+        const percent = (remaining / (config.deleteTimeout * 1000)) * 100;
+        deletionBar.style.width = `${percent}%`;
+
+        if (percent < 35) {
+          deletionBar.classList.add('danger');
+        } else {
+          deletionBar.classList.remove('danger');
+        }
+      }
+
+      checkSafety();
+    }
+
+    // Delete everything
+    function deleteAll() {
+      clearSession();
+      textarea.value = '';
+      writer.classList.remove('active');
+      deletedOverlay.classList.add('active');
+      deletionIndicator.classList.remove('active');
+      deletionIndicator.classList.remove('safe');
+      if (deleteTimer) clearTimeout(deleteTimer);
+      if (displayTimer) clearInterval(displayTimer);
+    }
+
+    // Reset delete timer
+    function resetDeleteTimer() {
+      if (isSafe) return;
+
+      if (deleteTimer) clearTimeout(deleteTimer);
+
+      session.lastWriteTime = Date.now();
+      saveSession();
+
+      timerEl.classList.remove('danger');
+      deletionBar.style.width = '100%';
+      deletionBar.classList.remove('danger');
+      deletionIndicator.classList.add('active');
+
+      deleteTimer = setTimeout(() => {
+        if (!isSafe) {
+          deleteAll();
+        }
+      }, config.deleteTimeout * 1000);
+
+      // Show danger state in last 5 seconds
+      setTimeout(() => {
+        if (!isSafe && deleteTimer) {
+          timerEl.classList.add('danger');
+        }
+      }, Math.max(0, (config.deleteTimeout - 5) * 1000));
+    }
+
+    // Handle input
+    function handleInput(e) {
+      // Detect if this was a deletion (backspace, delete, cut, etc.)
+      const newText = textarea.value;
+      const oldText = session.text || '';
+
+      // Only reset timer if text was added, not removed
+      if (newText.length > oldText.length) {
+        // Start the session clock on first character
+        if (!session.startTime && newText.length > 0) {
+          session.startTime = Date.now();
+          session.lastWriteTime = Date.now();
+        }
+        resetDeleteTimer();
+      }
+
+      session.text = newText;
+      saveSession();
+      updateDisplay();
+    }
+
+    // Start writing
+    function startWriting(existingSession = null) {
+      if (existingSession) {
+        session = existingSession;
+        config = session.config;
+      } else {
+        config = {
+          deleteTimeout: parseInt(document.getElementById('deleteTimeout').value) || 15,
+          timeGoal: parseInt(document.getElementById('timeGoal').value) || 5,
+          wordGoal: parseInt(document.getElementById('wordGoal').value) || 500
+        };
+        session = {
+          config,
+          text: '',
+          startTime: null,
+          lastWriteTime: null
+        };
+      }
+
+      isSafe = false;
+      landing.style.display = 'none';
+      deletedOverlay.classList.remove('active');
+      writer.classList.add('active');
+      textarea.value = session.text || '';
+
+      // Reset visual states
+      safeBanner.classList.remove('active');
+      timerEl.classList.remove('safe', 'danger');
+      wordCountEl.classList.remove('achieved');
+      deletionIndicator.classList.remove('active', 'safe');
+      deletionBar.style.width = '100%';
+      deletionBar.classList.remove('danger');
+
+      // Check if we should delete immediately due to timeout while away
+      if (session.lastWriteTime && session.startTime) {
+        const timeSinceLastWrite = Date.now() - session.lastWriteTime;
+        if (timeSinceLastWrite > config.deleteTimeout * 1000) {
+          // Check safety first
+          checkSafety();
+          if (!isSafe) {
+            deleteAll();
+            return;
+          }
+        }
+      }
+
+      checkSafety();
+      updateDisplay();
+
+      // Start display update interval
+      displayTimer = setInterval(updateDisplay, 100);
+
+      // If session in progress and not safe, start the delete timer
+      if (session.startTime && !isSafe) {
+        deletionIndicator.classList.add('active');
+        const timeSinceLastWrite = Date.now() - session.lastWriteTime;
+        const remainingTime = (config.deleteTimeout * 1000) - timeSinceLastWrite;
+
+        if (remainingTime > 0) {
+          deleteTimer = setTimeout(() => {
+            if (!isSafe) deleteAll();
+          }, remainingTime);
+
+          // Danger warning
+          const dangerTime = remainingTime - 5000;
+          if (dangerTime > 0) {
+            setTimeout(() => {
+              if (!isSafe && deleteTimer) timerEl.classList.add('danger');
+            }, dangerTime);
+          } else {
+            timerEl.classList.add('danger');
+          }
+        } else {
+          deleteAll();
+          return;
+        }
+      }
+
+      textarea.focus();
+      textarea.addEventListener('input', handleInput);
+    }
+
+    // Initialize
+    function init() {
+      const existingSession = loadSession();
+
+      if (existingSession && existingSession.text) {
+        startWriting(existingSession);
+      } else {
+        landing.style.display = 'block';
+      }
+
+      startBtn.addEventListener('click', () => startWriting());
+      restartBtn.addEventListener('click', () => {
+        deletedOverlay.classList.remove('active');
+        landing.style.display = 'block';
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>
